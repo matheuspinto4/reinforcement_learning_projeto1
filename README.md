@@ -43,5 +43,5 @@ A explicação e detalhamento do projeto e suas funções estão no arquivo ***r
 
 ## **Autores**
 
-* Laio.
-* Matheus Pinto. 
+* Laio Magalhães
+* Matheus Pinto 
