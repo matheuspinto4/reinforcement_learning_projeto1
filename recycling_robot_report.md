@@ -121,7 +121,7 @@ Ele provê:
 | (L, WAIT)      | `L` (determinístico)                    | `r_wait`   |
 | (L, RECHARGE)  | `H` (determinístico)                    | `0.0`      |
 
-**TL;DR:** Este bloco implementa $ P(s', r \mid s, a) $ do MDP de forma compacta e segura, separando responsabilidades e refletindo as incertezas reais do robô ao buscar, esperar ou recarregar.
+**TL;DR:** Este bloco implementa \( P(s', r \mid s, a) \) do MDP de forma compacta e segura, separando responsabilidades e refletindo as incertezas reais do robô ao buscar, esperar ou recarregar.
 
 	
 ```python
@@ -162,13 +162,13 @@ def valid_actions(state: int):
 ---
 ### 2.4 – Física do agente e TD (Temporal-Difference): **contexto e escolhas de design**
 
-Este bloco implementa um **agente de Controle TD** capaz de aprender políticas por **SARSA (on-policy)** ou **Q-learning (off-policy)** sobre a mesma tabela $Q(s,a)$ de dimensão **2×3** (2 estados × 3 ações).
+Este bloco implementa um **agente de Controle TD** capaz de aprender políticas por **SARSA (on-policy)** ou **Q-learning (off-policy)** sobre a mesma tabela \(Q(s,a)\) de dimensão **2×3** (2 estados × 3 ações).
 
 #### O que o agente faz (visão geral)
 
-- Mantém uma **tabela $Q$** `self.Q` com os valores-ação.
-- Escolhe ações por **$\varepsilon$-greedy**: com probabilidade $\varepsilon$ **explora**; com $1-\varepsilon$ **aproveita** $\operatorname*{arg\,max}_{a \in \mathcal{A}(s)} Q(s,a)$ **apenas** entre ações válidas (`valid_actions(state)`).
-- Atualiza $Q$ por **TD**:
+- Mantém uma **tabela \(Q\)** `self.Q` com os valores-ação.
+- Escolhe ações por **\(\varepsilon\)-greedy**: com probabilidade \(\varepsilon\) **explora**; com \(1-\varepsilon\) **aproveita** \(\operatorname*{arg\,max}_{a \in \mathcal{A}(s)} Q(s,a)\) **apenas** entre ações válidas (`valid_actions(state)`).
+- Atualiza \(Q\) por **TD**:
   - **SARSA (on-policy):**
     $$
     \text{target} = r + \gamma\, Q(s', a'), \quad a' \sim \pi_{\varepsilon}\ \ (\text{mesma política})
@@ -177,9 +177,9 @@ Este bloco implementa um **agente de Controle TD** capaz de aprender políticas 
     $$
     \text{target} = r + \gamma \max_{a' \in \mathcal{A}(s')} Q(s', a')
     $$
-  - **Erro TD:** $\delta = \text{target} - Q(s,a)$  
-  - **Atualização:** $Q(s,a) \leftarrow Q(s,a) + \alpha\,\delta$
-- **Decaimento de $\varepsilon$:** $\varepsilon \leftarrow \max(\varepsilon_{\min},\ \varepsilon \cdot \text{decay})$.  
+  - **Erro TD:** \(\delta = \text{target} - Q(s,a)\)  
+  - **Atualização:** \(Q(s,a) \leftarrow Q(s,a) + \alpha\,\delta\)
+- **Decaimento de \(\varepsilon\):** \(\varepsilon \leftarrow \max(\varepsilon_{\min},\ \varepsilon \cdot \text{decay})\).  
   Com o tempo, **diminui a exploração** e **aumenta o aproveitamento (greedy)**.
 
 
@@ -187,24 +187,24 @@ Este bloco implementa um **agente de Controle TD** capaz de aprender políticas 
 - **Ações inválidas “existem” na Q-table, mas nunca são escolhidas.**  
   Mantemos a Q-table fixa (2×3) por simplicidade e compatibilidade com o resto do código; a função `valid_actions(state)` garante que `act()` só considere ações legais em cada estado. Ainda assim, manter a coluna “inútil” evita condicionais e reshape ao longo do pipeline.
 - **Empate no argmax** com ruído leve.**  
-  Em `act()`, um ruído minúsculo quebra empates aleatoriamente, evitando viés sistemático quando $Q$ tem valores iguais.
+  Em `act()`, um ruído minúsculo quebra empates aleatoriamente, evitando viés sistemático quando \(Q\) tem valores iguais.
 - **RNG injetado e `seed` controlado.**  
   O agente cria seu próprio `np.random.Generator` (`self.rng`), garantindo **reprodutibilidade** (seeds) e separação limpa de fontes de aleatoriedade.
 - **On-policy vs Off-policy em uma só classe.**  
   O parâmetro `method` alterna o **alvo TD** sem duplicar código. Isso permite comparar rapidamente estabilidade (SARSA) vs. velocidade/otimismo (Q-learning).
 - **Política de avaliação separada** (`policy_probs(epsilon_eval)`).  
-  Constrói $ \pi(a\mid s) $ **para avaliação/visualização** (ex.: heatmap), com $\varepsilon$ **de avaliação** (não o de treino).  
+  Constrói \( \pi(a\mid s) \) **para avaliação/visualização** (ex.: heatmap), com \(\varepsilon\) **de avaliação** (não o de treino).  
   Invariantes: probabilidades somam 1 **apenas** sobre ações válidas; inválidas recebem 0.
 
 #### Hiperparâmetros e seus papéis
-- `alpha` ($\alpha$): **taxa de aprendizado**. Valores maiores aprendem rápido, mas podem oscilar; valores menores são mais estáveis.
+- `alpha` (\(\alpha\)): **taxa de aprendizado**. Valores maiores aprendem rápido, mas podem oscilar; valores menores são mais estáveis.
 - `epsilon`, `epsilon_min`, `epsilon_decay`: controlam o **equilíbrio exploração/aproveitamento** ao longo do tempo.
-- `gamma` ($\gamma$, vem de `Params`): **desconto** de recompensas futuras; define o horizonte efetivo.
+- `gamma` (\(\gamma\), vem de `Params`): **desconto** de recompensas futuras; define o horizonte efetivo.
 
 #### Por que isso funciona bem aqui
 - O ambiente é **pequeno** (2×3), logo **tabular** é a escolha natural (sem redes neurais).
-- A separação **ambiente ↔ agente** permanece clara: o agente só vê transições $(s,a,r,s')$.
-- `policy_probs` facilita **interpretação**: você consegue inspecionar a política aprendida com $\varepsilon$ de avaliação (p.ex., 0 ou 0.05) sem “contaminar” o treino.
+- A separação **ambiente ↔ agente** permanece clara: o agente só vê transições \((s,a,r,s')\).
+- `policy_probs` facilita **interpretação**: você consegue inspecionar a política aprendida com \(\varepsilon\) de avaliação (p.ex., 0 ou 0.05) sem “contaminar” o treino.
 
 **TL;DR:** uma implementação enxuta de **Controle TD** que alterna entre **SARSA** e **Q-learning**, usa **ε-greedy** restrito a ações válidas, garante reprodutibilidade e oferece ferramentas para **salvar/carregar** a política e **visualizá-la** de forma consistente.
 
@@ -399,33 +399,33 @@ Você ganha 3 coisas principais:
 Funções: `greedy_policy_from_Q`, `transition_reward_under_policy`, `stationary_distribution`, `avg_reward_of_policy`.
 
 - **`greedy_policy_from_Q(Q)`**  
-  Extrai a **política greedy** $\pi_{\text{greedy}}$ da tabela $Q$:  
+  Extrai a **política greedy** \(\pi_{\text{greedy}}\) da tabela \(Q\):  
   - Em `H`, escolhe `argmax` entre **SEARCH/WAIT**.  
   - Em `L`, escolhe `argmax` entre **SEARCH/WAIT/RECHARGE**.  
   *Obs.:* Mantemos a Q-table 2×3 mesmo com ações inválidas; aqui só consultamos as **válidas**.
 
-- **`transition_reward_under_policy(p, policy)`** → **$P$ e $R$ induzidos por $\pi$**  
+- **`transition_reward_under_policy(p, policy)`** → **\(P\) e \(R\) induzidos por \(\pi\)**  
   Constrói:
-  - Uma **matriz de transição** $P \in \mathbb{R}^{2\times 2}$ tal que $P[s,s'] = \Pr(s' \mid s,\pi(s))$.  
-  - Um **vetor de recompensa imediata média por estado** $R \in \mathbb{R}^{2}$, consistente com a ação que $\pi$ toma naquele estado.  
+  - Uma **matriz de transição** \(P \in \mathbb{R}^{2\times 2}\) tal que \(P[s,s'] = \Pr(s' \mid s,\pi(s))\).  
+  - Um **vetor de recompensa imediata média por estado** \(R \in \mathbb{R}^{2}\), consistente com a ação que \(\pi\) toma naquele estado.  
   Exemplos:  
-  - Se $\pi(H)=\text{SEARCH}$, então $P(H,H)=\alpha_p$, $P(H,L)=1-\alpha_p$, $R(H)=r_{\text{search}}$.  
-  - Se $\pi(L)=\text{SEARCH}$, $R(L)=r_{\text{search}}\cdot\beta_p + \text{penalty}\cdot(1-\beta_p)$ (média dos dois resultados possíveis).
+  - Se \(\pi(H)=\text{SEARCH}\), então \(P(H,H)=\alpha_p\), \(P(H,L)=1-\alpha_p\), \(R(H)=r_{\text{search}}\).  
+  - Se \(\pi(L)=\text{SEARCH}\), \(R(L)=r_{\text{search}}\cdot\beta_p + \text{penalty}\cdot(1-\beta_p)\) (média dos dois resultados possíveis).
 
-- **`stationary_distribution(P)`** → **$\pi_{\text{stat}}$**  
+- **`stationary_distribution(P)`** → **\(\pi_{\text{stat}}\)**  
   Resolve o sistema:
   \[
     \pi_{\text{stat}}^\top P = \pi_{\text{stat}}^\top,\quad \sum_s \pi_{\text{stat}}(s)=1
   \]
-  para obter a **distribuição estacionária** da cadeia de Markov sob $\pi$.  
+  para obter a **distribuição estacionária** da cadeia de Markov sob \(\pi\).  
   Implementação: resolve uma LSQ (least squares) com a equação de fluxo + normalização.
 
-- **`avg_reward_of_policy(p, policy)`** → **$g$**  
+- **`avg_reward_of_policy(p, policy)`** → **\(g\)**  
   Calcula a **recompensa média por passo** sob a política aprendida:
   \[
     g \;=\; \pi_{\text{stat}}^\top R
   \]
-  Este $g$ é a base da **linha‐alvo** nos gráficos (seção B).
+  Este \(g\) é a base da **linha‐alvo** nos gráficos (seção B).
 
 ---
 
@@ -435,14 +435,14 @@ Função: `plot_epoch_metrics(...)`
 - **Entrada principal:** `rewards.txt` (uma linha por epoch) gerado em `train_td`.  
 - **Média móvel:** usa convolução com janela `window` para **suavizar** a curva (variável `mov`).
 - **Linha‐alvo (opcional):** se `params` e `Q_path` existem, calcula:
-  - $\pi_{\text{greedy}}$ ← `greedy_policy_from_Q(Q)`  
-  - $g$ ← `avg_reward_of_policy(params, π)` (**recompensa média por passo**)  
-  - **Alvo por epoch** $\approx g \times \text{steps\_per\_epoch}$ → desenha uma **linha horizontal**.  
+  - \(\pi_{\text{greedy}}\) ← `greedy_policy_from_Q(Q)`  
+  - \(g\) ← `avg_reward_of_policy(params, π)` (**recompensa média por passo**)  
+  - **Alvo por epoch** \(\approx g \times \text{steps\_per\_epoch}\) → desenha uma **linha horizontal**.  
   Interpretação: se o treino convergiu para algo próximo da política "greedy" atual, a **média móvel** da recompensa por epoch tende a estabilizar **perto** dessa linha.
 
 O gráfico é mostrado em **duas vistas**:
 1. **Total por epoch** (e a **média móvel**).  
-2. **Média por passo** do epoch (`total/steps_per_epoch`) — deve se aproximar de $g$.
+2. **Média por passo** do epoch (`total/steps_per_epoch`) — deve se aproximar de \(g\).
 
 > ⚠️ **Sutileza importante:** a **linha‐alvo** usa a **política greedy do arquivo Q** no momento do *plot*; se você ainda está treinando/alterando Q, a linha é **uma aproximação** de “onde deveríamos chegar” dado o que está salvo.
 
@@ -451,34 +451,34 @@ O gráfico é mostrado em **duas vistas**:
 #### C) Heatmap da política aprendida (probabilidades de ação)
 Função: `plot_policy_heatmap(Q_path, epsilon_eval)`
 
-- Carrega `Q` e usa `agent.policy_probs(epsilon_eval)` para construir uma matriz **2×3** com $\pi(a\mid s)$ sob **ε-greedy de avaliação** (normalmente `epsilon_eval` pequeno, ex.: 0.05).
+- Carrega `Q` e usa `agent.policy_probs(epsilon_eval)` para construir uma matriz **2×3** com \(\pi(a\mid s)\) sob **ε-greedy de avaliação** (normalmente `epsilon_eval` pequeno, ex.: 0.05).
 - **Máscara de ação inválida:** se `seaborn` estiver disponível, máscara **RECHARGE em H** (inexistente), deixando a figura mais legível.
 - **Quando usar:** depois de treinar, escolha `epsilon_eval` baixo para ver a política **quasi-greedy**, mas ainda com chance mínima de qualquer ação válida.
 
 ---
 
-#### D) Visualizando a dinâmica $P(s'\mid s,a)$ 
+#### D) Visualizando a dinâmica \(P(s'\mid s,a)\) 
 Funções: `build_P_R_tables`, `plot_sa_to_sprime_heatmap`
 
 - **`build_P_R_tables(p)`**  
   Constrói:
-  - `P_sa`: tensor $2 \times 3 \times 2$ com $P(s' \mid s,a)$ **por par (s,a)**.  
-  - `R_sa`: matriz $2 \times 3$ com $E[r\mid s,a]$ **por par (s,a)**.  
+  - `P_sa`: tensor \(2 \times 3 \times 2\) com \(P(s' \mid s,a)\) **por par (s,a)**.  
+  - `R_sa`: matriz \(2 \times 3\) com \(E[r\mid s,a]\) **por par (s,a)**.  
   Preenchimento segue a definição do MDP:
-  - **H, SEARCH:** $P(H)=\alpha_p,\ P(L)=1-\alpha_p,\ R=r_{\text{search}}$.  
-  - **H, WAIT:** $P(H)=1,\ R=r_{\text{wait}}$.  
-  - **L, SEARCH:** $P(L)=\beta_p,\ P(H)=1-\beta_p$ e
+  - **H, SEARCH:** \(P(H)=\alpha_p,\ P(L)=1-\alpha_p,\ R=r_{\text{search}}\).  
+  - **H, WAIT:** \(P(H)=1,\ R=r_{\text{wait}}\).  
+  - **L, SEARCH:** \(P(L)=\beta_p,\ P(H)=1-\beta_p\) e
     \[
       R = r_{\text{search}}\cdot\beta_p + \text{penalty}\cdot(1-\beta_p).
     \]
-  - **L, WAIT:** $P(L)=1,\ R=r_{\text{wait}}$.  
-  - **L, RECHARGE:** $P(H)=1,\ R=0$.
+  - **L, WAIT:** \(P(L)=1,\ R=r_{\text{wait}}\).  
+  - **L, RECHARGE:** \(P(H)=1,\ R=0\).
 
 - **`plot_sa_to_sprime_heatmap(P_sa)`**  
-  Junta os vetores $P(\cdot \mid s,a)$ das colunas $(H:\text{SEARCH}), (H:\text{WAIT}), (L:\text{SEARCH}), (L:\text{WAIT}), (L:\text{RECHARGE})$ em uma matriz 2×5 e plota um heatmap:  
-  - **Linhas** = próximo estado $s'\in\{H,L\}$.  
-  - **Colunas** = pares $(s{:}a)$ listados acima.  
-  Útil para **checar se as probabilidades batem** com $\alpha_p$ e $\beta_p$ e para **explicar a mecânica do MDP**.
+  Junta os vetores \(P(\cdot \mid s,a)\) das colunas \((H:\text{SEARCH}), (H:\text{WAIT}), (L:\text{SEARCH}), (L:\text{WAIT}), (L:\text{RECHARGE})\) em uma matriz 2×5 e plota um heatmap:  
+  - **Linhas** = próximo estado \(s'\in\{H,L\}\).  
+  - **Colunas** = pares \((s{:}a)\) listados acima.  
+  Útil para **checar se as probabilidades batem** com \(\alpha_p\) e \(\beta_p\) e para **explicar a mecânica do MDP**.
 
 
 ---
@@ -487,7 +487,7 @@ Funções: `build_P_R_tables`, `plot_sa_to_sprime_heatmap`
 Função: `steps_to_threshold(rewards_per_epoch, steps_per_epoch, g_target, eps=0.01, window=10)`
 
 - Transforma a curva por epoch em **média por passo** (`rewards_per_epoch / steps_per_epoch`).
-- Aplica **média móvel** de tamanho `window` e procura o **primeiro índice** em que a média móvel fica **acima de $g_{\text{target}} - \varepsilon$**.
+- Aplica **média móvel** de tamanho `window` e procura o **primeiro índice** em que a média móvel fica **acima de \(g_{\text{target}} - \varepsilon\)**.
 - Retorna o **número aproximado de passos** até atingir a meta:
   \[
     \text{steps} \approx (\text{índice encontrado} + \text{ajuste da janela}) \times \text{steps\_per\_epoch}.
@@ -500,61 +500,61 @@ Função: `steps_to_threshold(rewards_per_epoch, steps_per_epoch, g_target, eps=
 
 ### Por que este desenho é útil
 - **Interpretação**: você não vê só “a curva subindo”; você **relaciona** a curva a um **alvo** derivado da política realmente aprendida.  
-- **Depuração**: heatmaps de $\pi(a\mid s)$, $P(s'\mid s,a)$ e $E[r\mid s,a]$ tornam **visíveis** erros de modelagem ou de implementação.  
+- **Depuração**: heatmaps de \(\pi(a\mid s)\), \(P(s'\mid s,a)\) e \(E[r\mid s,a]\) tornam **visíveis** erros de modelagem ou de implementação.  
 - **Reprodutibilidade**: todos os gráficos dependem de **arquivos salvos** (`rewards.txt`, `policy_robot_q_run*.npy`), então é fácil versionar e comparar execuções.
 
 ---
 #### F) **Uso de ações no longo prazo** (`plot_long_run_action_usage`)
 
-**O que é:** gera um heatmap $2\times 3$ com a **frequência de uso** de cada par $(s,a)$ quando o sistema opera em **regime estacionário** sob uma **política de avaliação** $\varepsilon$-greedy fixa (`epsilon_eval`).
+**O que é:** gera um heatmap \(2\times 3\) com a **frequência de uso** de cada par \((s,a)\) quando o sistema opera em **regime estacionário** sob uma **política de avaliação** \(\varepsilon\)-greedy fixa (`epsilon_eval`).
 
 - **Entrada principal**
   - `Q_path`: caminho da Q-table treinada (ex.: `policy_robot_q_run1.npy`).
   - `params`: parâmetros do MDP (α\_p, β\_p, recompensas…).
-  - `epsilon_eval`: $\varepsilon$ **de avaliação** (apenas para o snapshot).  
-    *Não* é o $\varepsilon$ usado no treino.
+  - `epsilon_eval`: \(\varepsilon\) **de avaliação** (apenas para o snapshot).  
+    *Não* é o \(\varepsilon\) usado no treino.
 
 - **Saída**
-  - `usage` $(2\times 3)$: $ \text{usage}(s,a) = \pi_{\text{stat}}(s)\,\pi(a\mid s) $
-  - `pi_stat` $(2,)$: distribuição estacionária dos **estados** sob a política de avaliação.
-  - `P_eval` $(2\times 3)$: matriz da política de avaliação $ \pi(a\mid s) $.
+  - `usage` \((2\times 3)\): \( \text{usage}(s,a) = \pi_{\text{stat}}(s)\,\pi(a\mid s) \)
+  - `pi_stat` \((2,)\): distribuição estacionária dos **estados** sob a política de avaliação.
+  - `P_eval` \((2\times 3)\): matriz da política de avaliação \( \pi(a\mid s) \).
 
 ---
 
 #### Como a figura é construída (passo a passo)
 
 1. **Política de avaliação** a partir de **Q**:  
-   $ P_{\text{eval}}(a\mid s) = \pi(a\mid s) $ via `agent.policy_probs(epsilon_eval)`.
+   \( P_{\text{eval}}(a\mid s) = \pi(a\mid s) \) via `agent.policy_probs(epsilon_eval)`.
 2. **Dinâmica induzida pela política**:  
-   $ P_\pi(s'\mid s) \;=\; \sum_{a} \pi(a\mid s)\, P(s'\mid s,a) $.
+   \( P_\pi(s'\mid s) \;=\; \sum_{a} \pi(a\mid s)\, P(s'\mid s,a) \).
 3. **Regime estacionário** (visitação de estados no longo prazo):  
-   resolver $ \pi_{\text{stat}}^\top = \pi_{\text{stat}}^\top P_\pi $ e $ \sum_s \pi_{\text{stat}}(s)=1 $.
+   resolver \( \pi_{\text{stat}}^\top = \pi_{\text{stat}}^\top P_\pi \) e \( \sum_s \pi_{\text{stat}}(s)=1 \).
 4. **Uso de (s,a)**:  
-   $ \text{usage}(s,a) = \pi_{\text{stat}}(s)\,\pi(a\mid s) $  $\Rightarrow$ **quanto tempo** o sistema passa em cada ação de cada estado.
+   \( \text{usage}(s,a) = \pi_{\text{stat}}(s)\,\pi(a\mid s) \)  \(\Rightarrow\) **quanto tempo** o sistema passa em cada ação de cada estado.
 
 ---
 
 #### Como **ler** o heatmap
 
-- Células **maiores** indicam pares $(s,a)$ **mais frequentes** no longo prazo.  
+- Células **maiores** indicam pares \((s,a)\) **mais frequentes** no longo prazo.  
   Ex.: se `L:WAIT` aparece destacado, o processo **passa muito tempo em L** e escolhe **WAIT** quase sempre.
 - Se `epsilon_eval` é pequeno (ex.: 0.05), o heatmap tende a concentrar a massa nas **ações gulosas** do estado **mais visitado**.
-- Mudanças em `params` que **alteram $P(s'|s,a)$** (α\_p, β\_p) ou recompensas **mudam $\pi_{\text{stat}}$** e podem deslocar a **massa de uso** para outros $(s,a)$.
+- Mudanças em `params` que **alteram \(P(s'|s,a)\)** (α\_p, β\_p) ou recompensas **mudam \(\pi_{\text{stat}}\)** e podem deslocar a **massa de uso** para outros \((s,a)\).
 
 ---
 
 #### Quando usar (e por que é útil)
 
-- **Tarefas contínuas:** mais informativo do que apenas a política $\pi(a\mid s)$, pois pondera pela **visitação de estados**.  
-- **Explicar $g$** (ganho médio por passo): se o uso concentra em uma ação com baixa recompensa, $g$ ficará baixo mesmo com política “correta”.
+- **Tarefas contínuas:** mais informativo do que apenas a política \(\pi(a\mid s)\), pois pondera pela **visitação de estados**.  
+- **Explicar \(g\)** (ganho médio por passo): se o uso concentra em uma ação com baixa recompensa, \(g\) ficará baixo mesmo com política “correta”.
 - **Comparar políticas avaliadas**: altere `epsilon_eval` (0.05 vs 0.0) para ver o efeito de um **pouco de exploração** no regime.
 
 ---
 
 #### Armadilhas e interpretações
 
-- `epsilon_eval` **não** é o $\varepsilon$ do **treino**; aqui é só para o **snapshot**.  
-- Heatmap **não** mostra recompensas diretamente; para isso, use o gráfico de $ \mathbb{E}[r\mid s,a] $.  
+- `epsilon_eval` **não** é o \(\varepsilon\) do **treino**; aqui é só para o **snapshot**.  
+- Heatmap **não** mostra recompensas diretamente; para isso, use o gráfico de \( \mathbb{E}[r\mid s,a] \).  
 - Se uma ação é **inválida** em um estado (ex.: `RECHARGE` em `H`), a célula deve ser ~0.
 
 ---
@@ -563,10 +563,10 @@ Função: `steps_to_threshold(rewards_per_epoch, steps_per_epoch, g_target, eps=
 
 **O que faz:** imprime um **sumário legível** da política aprendida a partir da Q-table salva, incluindo:
 - **Ação greedy por estado** (política determinística com ε=0).
-- **Política de avaliação** $ \pi(a\mid s) $ com `epsilon_eval` (snapshot quase guloso).
+- **Política de avaliação** \( \pi(a\mid s) \) com `epsilon_eval` (snapshot quase guloso).
 - **Q-values** por estado/ação.
-- **Regime estacionário** $ \pi_{\text{stat}} $ induzido por $ \pi(a\mid s) $ e o **ganho esperado por passo** $ g_{\text{eval}} $.
-- **Uso de (s,a) no longo prazo**: $ \text{usage}(s,a)=\pi_{\text{stat}}(s)\cdot\pi(a\mid s) $.
+- **Regime estacionário** \( \pi_{\text{stat}} \) induzido por \( \pi(a\mid s) \) e o **ganho esperado por passo** \( g_{\text{eval}} \).
+- **Uso de (s,a) no longo prazo**: \( \text{usage}(s,a)=\pi_{\text{stat}}(s)\cdot\pi(a\mid s) \).
 
 ---
 
@@ -583,9 +583,9 @@ Use quando quiser saber **o que o TD tende a aprender** (sob seu regime de trein
 #### I) **Varredura 4D com TD** (`sweep_4d_td`)
 
 **O que faz:** varre a *grade cartesiana* de parâmetros do MDP  
-$(\alpha_p, \beta_p, r_{\text{wait}}, \text{penalty})$ e, para **cada** combinação, treina o agente por TD (várias repetições), extrai as **ações gulosas aprendidas** em **H** e **L** (por **voto da maioria**) e estima o **ganho médio por passo** $ \tilde{g} $ da política aprendida.  
+\((\alpha_p, \beta_p, r_{\text{wait}}, \text{penalty})\) e, para **cada** combinação, treina o agente por TD (várias repetições), extrai as **ações gulosas aprendidas** em **H** e **L** (por **voto da maioria**) e estima o **ganho médio por passo** \( \tilde{g} \) da política aprendida.  
 Em seguida:
-- **Ordena** as combinações por $ \tilde{g} $ e imprime o **Top-k** (melhores).
+- **Ordena** as combinações por \( \tilde{g} \) e imprime o **Top-k** (melhores).
 - Mostra a **dominância** de ações em H e L (fração da grade em que cada ação venceu).
 - (Opcional) **exporta CSV** com todas as linhas.
 
@@ -1036,7 +1036,7 @@ def sweep_4d_td(
 
 Esta parte fornece um **baseline de Programação Dinâmica (DP)** por **Value Iteration** para o MDP do robô e, depois, compara o que o **TD aprendeu** com esse baseline. São duas peças:
 
-1) `value_iteration(p, tol, max_iter)` — calcula $v^{*}(H), v^{*}(L)$ e a **política greedy ótima** derivada desses valores.  
+1) `value_iteration(p, tol, max_iter)` — calcula \(v^{*}(H), v^{*}(L)\) e a **política greedy ótima** derivada desses valores.  
 2) `train_with_metrics(...)` — treina o TD, mede tempos e **compara** a política aprendida com a política de DP.
 
 ---
@@ -1049,7 +1049,7 @@ v^{*}(s) = \max_{a \in \mathcal{A}(s)}
 \left[ r(s,a) + \gamma \sum_{s'} P(s' \mid s,a)\, v^{*}(s') \right]
 $$
 
-Como só temos **dois estados** $\{H,L\}$, o código explicita os **Q’s “analíticos”** de cada ação e atualiza $v_H, v_L$ até convergir:
+Como só temos **dois estados** \(\{H,L\}\), o código explicita os **Q’s “analíticos”** de cada ação e atualiza \(v_H, v_L\) até convergir:
 
 - Em **H**:
 \[
@@ -1075,7 +1075,7 @@ v_L^{\text{new}}     &= \max\{q_L(\text{SEARCH}),\; q_L(\text{WAIT}),\; q_L(\tex
 \[
 |v_H^{\text{new}}-v_H| + |v_L^{\text{new}}-v_L| \;<\; \texttt{tol},
 \]
-ou ao atingir `max_iter`. Em seguida, deriva a **política greedy ótima** $ \pi^{*} $ escolhendo, em cada estado, a ação com maior $ q(s,a) $.
+ou ao atingir `max_iter`. Em seguida, deriva a **política greedy ótima** \( \pi^{*} \) escolhendo, em cada estado, a ação com maior \( q(s,a) \).
 
 
 $$
@@ -1086,7 +1086,7 @@ $$
 
 **Retorno.** `((vH, vL), {H: aH, L: aL})` — os valores ótimos e a política greedy ótima correspondente.
 
-> **Nota de modelagem:** no `q_L(SEARCH)` a recompensa imediata é usada **como a própria esperança** (média ponderada por $\beta_p$), coerente com DP, enquanto `env_step` amostra um dos dois desfechos estocásticos.
+> **Nota de modelagem:** no `q_L(SEARCH)` a recompensa imediata é usada **como a própria esperança** (média ponderada por \(\beta_p\)), coerente com DP, enquanto `env_step` amostra um dos dois desfechos estocásticos.
 
 ---
 
@@ -1097,24 +1097,24 @@ $$
 **Passo a passo.**
 1. **Cronometra** o treino TD chamando `train_td(...)` e medindo `time_sec`.  
 2. Lê `rewards.txt` (curva da última run) e a Q-table salva em `q_out`.  
-3. Constrói a **política greedy aprendida** $ \pi_{\text{learned}} $ e calcula o **ganho médio por passo** $g_{\text{learned}}$ com `avg_reward_of_policy` (seção 2.6).  
+3. Constrói a **política greedy aprendida** \( \pi_{\text{learned}} \) e calcula o **ganho médio por passo** \(g_{\text{learned}}\) com `avg_reward_of_policy` (seção 2.6).  
 4. **Se** você fornecer `dp_value_iteration_fn`:
-   - Resolve DP → obtém $\pi_{\text{opt}}$.  
-   - Calcula **$g_{\text{opt}}$** (ganho médio por passo sob a política ótima de DP).  
+   - Resolve DP → obtém \(\pi_{\text{opt}}\).  
+   - Calcula **\(g_{\text{opt}}\)** (ganho médio por passo sob a política ótima de DP).  
    - Estima **quantos passos até “chegar perto do ótimo”** com `steps_to_threshold(...)`.
 5. Calcula métricas de “eficiência” simples:
    - `eff_return_per_sec = g_learned / time_sec`  
-   - `eff_return_per_step = g_learned` (por definição de $g$).
+   - `eff_return_per_step = g_learned` (por definição de \(g\)).
 
 **Retorno (dict).**
 - `"time_sec"` — tempo de treino do TD.  
 - `"g_learned"` — ganho médio por passo da **política aprendida** (via distribuição estacionária).  
 - `"g_opt"` — ganho médio por passo da **política ótima (DP)**, se computada.  
-- `"gap"` — $g_{\text{opt}} - g_{\text{learned}}$ (quanto falta para o ótimo).  
-- `"steps_to_eps_opt"` — passos estimados para atingir $g_{\text{opt}}-\varepsilon$ (com média móvel).  
+- `"gap"` — \(g_{\text{opt}} - g_{\text{learned}}\) (quanto falta para o ótimo).  
+- `"steps_to_eps_opt"` — passos estimados para atingir \(g_{\text{opt}}-\varepsilon\) (com média móvel).  
 - `"eff_return_per_sec"`, `"eff_return_per_step"` — indicadores simples de eficiência.
 
-> **Observação importante (métrica):** os gráficos/indicadores usam $g$ (**ganho médio por passo**) enquanto o TD treina com **desconto $\gamma$**. Para $\gamma$ alto e MDPs regulares, as políticas ótimas tendem a coincidir; ainda assim, trate a comparação como **referência prática**, não equivalência exata.
+> **Observação importante (métrica):** os gráficos/indicadores usam \(g\) (**ganho médio por passo**) enquanto o TD treina com **desconto \(\gamma\)**. Para \(\gamma\) alto e MDPs regulares, as políticas ótimas tendem a coincidir; ainda assim, trate a comparação como **referência prática**, não equivalência exata.
 
 ---
 
@@ -1299,14 +1299,14 @@ _ = train_td(
 **Leituras do gráfico:**
 - **Per-epoch total**: soma de recompensas por epoch.
 - **Moving avg (w=10)**: suaviza a curva.
-- **Target line**: aproxima $ g \times \texttt{steps\_per\_epoch} $, onde $g$ é o **ganho médio por passo** da **política greedy** extraída da Q-table final (`Q_path`).
+- **Target line**: aproxima \( g \times \texttt{steps\_per\_epoch} \), onde \(g\) é o **ganho médio por passo** da **política greedy** extraída da Q-table final (`Q_path`).
 
 #### Passo 5 — Heatmap da política aprendida (π(a|s) em avaliação)
 
 ```python
     plot_policy_heatmap(Q_path=f"policy_robot_q_run{REPEAT_RUNS}.npy", epsilon_eval=0.05)
 ```
-- Mostra $ \pi(a \mid s) $ sob $\varepsilon$-greedy de avaliação (`epsilon_eval` pequeno → quasi-greedy).
+- Mostra \( \pi(a \mid s) \) sob \(\varepsilon\)-greedy de avaliação (`epsilon_eval` pequeno → quasi-greedy).
 - Ação inválida (ex.: `RECHARGE` em `H`) é mascarada quando `seaborn` está disponível.
 
 ---
@@ -1462,30 +1462,30 @@ L: search=0.016, wait=0.920, recharge=0.016
 #### TL;DR
 - A política aprendida é **H → SEARCH** e **L → WAIT** (quase determinística).
 - Com seus parâmetros (`αp=βp=0.5, r_search=1.0, r_wait=0.5, penalty=-3, γ=0.5`), o **ganho médio por passo** é
-  $ g \approx 0.5 $.  
+  \( g \approx 0.5 \).  
 - As curvas de treino **encostam** no alvo: `g × steps_per_epoch = 0.5 × 2000 = 1000`.
 
 ---
 
-#### (1) Heatmap da política $ \pi(a\mid s) $ (ε_eval = 0.05)
+#### (1) Heatmap da política \( \pi(a\mid s) \) (ε_eval = 0.05)
 
 ![Diagrama do fluxo](docs/img/heatmap_politica.jpg)
 - **State H:** probabilidade ~1 em **SEARCH**.  
 - **State L:** probabilidade ~1 em **WAIT** (e ~0 em `RECHARGE` e `SEARCH`).  
-Isso é exatamente o que a recompensa imediata e o desconto $γ=0.5$ sugerem.
+Isso é exatamente o que a recompensa imediata e o desconto \(γ=0.5\) sugerem.
 
 > Por que **não** `L:RECHARGE`?  
-> No TD com desconto, o alvo compara $Q(L,\text{WAIT}) = r_{wait} + \gamma v_L$ com  
-> $Q(L,\text{RECHARGE}) = 0 + \gamma v_H$.  
-> Com os valores resolvidos para a política aprendida ($v_H \approx 1.667$, $v_L \approx 1.0$),  
-> $Q(L,\text{WAIT}) \approx 1.0$ e $Q(L,\text{RECHARGE}) \approx 0.833$ ⇒ **WAIT vence**.
+> No TD com desconto, o alvo compara \(Q(L,\text{WAIT}) = r_{wait} + \gamma v_L\) com  
+> \(Q(L,\text{RECHARGE}) = 0 + \gamma v_H\).  
+> Com os valores resolvidos para a política aprendida (\(v_H \approx 1.667\), \(v_L \approx 1.0\)),  
+> \(Q(L,\text{WAIT}) \approx 1.0\) e \(Q(L,\text{RECHARGE}) \approx 0.833\) ⇒ **WAIT vence**.
 
 ---
 
 #### (2) Curvas de recompensa por epoch
 ![Diagrama do fluxo](docs/img/recompensa_epoch.jpg)
 - **Total por epoch** oscila e **estabiliza** perto da linha pontilhada **alvo ≈ 1000**.  
-  (é $g \times \texttt{steps\_per\_epoch} = 0.5 \times 2000$)
+  (é \(g \times \texttt{steps\_per\_epoch} = 0.5 \times 2000\))
 - A **média móvel** (w=10) suaviza e mostra a tendência de convergência.
 
 **Leitura:** convergiu para o nível esperado da **política greedy final** (extraída da Q-table).
@@ -1494,20 +1494,20 @@ Isso é exatamente o que a recompensa imediata e o desconto $γ=0.5$ sugerem.
 
 #### (3) Curva de recompensa média por passo
 ![Diagrama do fluxo](docs/img/recompensa_passo.jpg)
-- A série converge para **$ g \approx 0.5 $**, coerente com (3) e com a política aprendida.
+- A série converge para **\( g \approx 0.5 \)**, coerente com (3) e com a política aprendida.
 - Variações residuais vêm da exploração restante e da estocasticidade do ambiente.
 
 ---
 
-#### (4) Heatmap de $ P(s' \mid s,a) $
+#### (4) Heatmap de \( P(s' \mid s,a) \)
 ![Diagrama do fluxo](docs/img/heatmap_probabilidades.jpg)
-- **H:SEARCH** → $P(H)=0.5, P(L)=0.5$ (αp=0.5).  
+- **H:SEARCH** → \(P(H)=0.5, P(L)=0.5\) (αp=0.5).  
 - **H:WAIT** → fica em `H` (1.0).  
-- **L:SEARCH** → $P(L)=0.5, P(H)=0.5$ (βp=0.5).  
+- **L:SEARCH** → \(P(L)=0.5, P(H)=0.5\) (βp=0.5).  
 - **L:WAIT** → fica em `L` (1.0).  
 - **L:RECHARGE** → vai a `H` (1.0).
 
-**Conexão com $g=0.5$:** sob a política aprendida (H:SEARCH, L:WAIT), a cadeia acaba **passando a maior parte do tempo em `L`** (de `H` cai para `L` com prob. 0.5 e, em `L`, `WAIT` não sai mais). Logo, no longo prazo, o ganho médio por passo tende a **$r_{wait}=0.5$**.
+**Conexão com \(g=0.5\):** sob a política aprendida (H:SEARCH, L:WAIT), a cadeia acaba **passando a maior parte do tempo em `L`** (de `H` cai para `L` com prob. 0.5 e, em `L`, `WAIT` não sai mais). Logo, no longo prazo, o ganho médio por passo tende a **\(r_{wait}=0.5\)**.
 
 ---
 
@@ -1554,7 +1554,7 @@ $$
 \pi_L \;=\; \frac{1 - \alpha_p}{2 - \alpha_p}.
 $$
 
-**Para $\alpha_p = 0{,}75$**
+**Para \(\alpha_p = 0{,}75\)**
 $$
 \pi_H \;=\; \frac{1}{1{,}25} \;=\; 0{,}8.
 $$
@@ -1582,15 +1582,15 @@ $$
 - Uma vez em **L**, a política **segura** o estado em **L** (não há transição para **H**).
 
 **Conclusão de longo prazo**
-- $\pi_L \to 1$  ⇒  $g \to r_{wait} = 0{,}75$.
+- \(\pi_L \to 1\)  ⇒  \(g \to r_{wait} = 0{,}75\).
 
 ---
 
 ### Notas:
 
 - **`steps_to_eps_opt`: `None`**  
-  Significa que, **no treino curto** (60 epochs usado pelo `train_with_metrics`), a **média móvel** da recompensa **por passo** **não** atingiu o limiar $g_{\text{opt}} - \varepsilon$.  
-  Com seus números: $g_{\text{opt}} = 0{,}50$ e $\varepsilon = 0{,}01$ ⇒ alvo = **0,49**.  
+  Significa que, **no treino curto** (60 epochs usado pelo `train_with_metrics`), a **média móvel** da recompensa **por passo** **não** atingiu o limiar \(g_{\text{opt}} - \varepsilon\).  
+  Com seus números: \(g_{\text{opt}} = 0{,}50\) e \(\varepsilon = 0{,}01\) ⇒ alvo = **0,49**.  
   Como a última época do treino curto terminou em ~**0,463** por passo (926/2000), o limiar não foi alcançado — por isso `None`.
 
   **Como obter um valor (não-None):**
@@ -1599,8 +1599,8 @@ $$
   - Alternativa: calcule contra o alvo da **política aprendida** (g_learned) ao invés do ótimo de DP.
 
 - **`eff_return_per_sec`: `0.214...`**  
-  É $ g_{\text{learned}} \div \text{tempo\_de\_treino} $.  
-  Aqui: $0{,}5 / 2{,}336 \approx 0{,}214$.  
+  É \( g_{\text{learned}} \div \text{tempo\_de\_treino} \).  
+  Aqui: \(0{,}5 / 2{,}336 \approx 0{,}214\).  
   Útil **só para comparação relativa** entre configurações na **mesma máquina** (mostra “quanto ganho médio por passo você obtém por segundo de treino”). **Não** é uma métrica padrão de RL.
 
 - **`eff_return_per_step`: `0.5`**  
@@ -1610,7 +1610,7 @@ $$
 #### Dicas de uso em experimentos
 - Se quer **tempo até atingir o ótimo**, aumente `epochs` do bloco de métricas (o treino curto de 60 epochs é conservador).  
 - Compare `eff_return_per_sec` entre **duas configs** (ex.: `alpha` menor vs. maior) com o **mesmo orçamento de epochs**; a maior razão indica melhor “custo–benefício” computacional.  
-- Observe se `g_learned` se aproxima de `g_opt`; um `gap` pequeno confirma que o TD alcançou o baseline de DP para o seu $\gamma$.
+- Observe se `g_learned` se aproxima de `g_opt`; um `gap` pequeno confirma que o TD alcançou o baseline de DP para o seu \(\gamma\).
 
 ### 6. Referências
 
